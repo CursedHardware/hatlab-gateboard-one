@@ -1,0 +1,1424 @@
+From cd54d0e5d58d1c29c534cde561c2360655762c79 Mon Sep 17 00:00:00 2001
+From: septs <github@septs.pw>
+Date: Thu, 10 Aug 2023 19:26:02 +0800
+Subject: [PATCH] add hatlab gateboard-one
+
+---
+ arch/mips/dts/hatlab,gateboard-one.dts        |  94 +++++++
+ arch/mips/mach-mtmips/mt7621/Kconfig          |  13 +-
+ arch/mips/mach-mtmips/mt7621/spl/start.S      |   5 +
+ board/mediatek/mt7621/Makefile                |   1 +
+ board/mediatek/mt7621/hatlab,gateboard-one.c  | 260 ++++++++++++++++++
+ .../mediatek/mt7621/hatlab,gateboard-one.env  |  70 +++++
+ board/mediatek/mt7621/hatlab,gateboard-one.h  |  41 +++
+ configs/hatlab_gateboard_one_1000_defconfig   | 125 +++++++++
+ configs/hatlab_gateboard_one_1200_defconfig   | 125 +++++++++
+ configs/hatlab_gateboard_one_880_defconfig    | 125 +++++++++
+ drivers/mtd/spi/spi-nor-ids.c                 |   1 +
+ helper/build.sh                               |  21 ++
+ mt7621_stage_sram.blob                        | Bin 0 -> 21424 bytes
+ mt7621_stage_sram.quiet.blob                  | Bin 0 -> 13928 bytes
+ 14 files changed, 877 insertions(+), 4 deletions(-)
+ create mode 100644 arch/mips/dts/hatlab,gateboard-one.dts
+ create mode 100644 board/mediatek/mt7621/hatlab,gateboard-one.c
+ create mode 100644 board/mediatek/mt7621/hatlab,gateboard-one.env
+ create mode 100644 board/mediatek/mt7621/hatlab,gateboard-one.h
+ create mode 100644 configs/hatlab_gateboard_one_1000_defconfig
+ create mode 100644 configs/hatlab_gateboard_one_1200_defconfig
+ create mode 100644 configs/hatlab_gateboard_one_880_defconfig
+ create mode 100755 helper/build.sh
+ create mode 100644 mt7621_stage_sram.blob
+ create mode 100644 mt7621_stage_sram.quiet.blob
+
+diff --git a/arch/mips/dts/hatlab,gateboard-one.dts b/arch/mips/dts/hatlab,gateboard-one.dts
+new file mode 100644
+index 0000000000..a555ff7b15
+--- /dev/null
++++ b/arch/mips/dts/hatlab,gateboard-one.dts
+@@ -0,0 +1,94 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (C) 2022 MediaTek Inc. All rights reserved.
++ *
++ * Author: Weijie Gao <weijie.gao@mediatek.com>
++ */
++
++/dts-v1/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include "mt7621.dtsi"
++
++/ {
++	compatible = "hatlab,gateboard-one", "mediatek,mt7621-soc";
++	model = "HATLab GateBoard-One";
++
++	aliases {
++		serial0 = &uart0;
++		spi0 = &spi;
++	};
++
++	chosen {
++		stdout-path = &uart0;
++	};
++};
++
++&pinctrl {
++	state_default: pin_state {
++		gpios {
++			groups = "wdt", "pcie reset", "i2c";
++			function = "gpio";
++		};
++
++		jtag {
++			groups = "jtag";
++			function = "jtag";
++		};
++	};
++};
++
++&uart0 {
++	status = "okay";
++};
++
++&gpio {
++	status = "okay";
++};
++
++&spi {
++	status = "okay";
++	num-cs = <2>;
++
++	spi-flash@0 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "jedec,spi-nor";
++		spi-max-frequency = <30000000>;
++		reg = <0>;
++	};
++
++	spi-nand@1 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		compatible = "spi-nand";
++		reg = <1>;
++		spi-max-frequency = <30000000>;
++	};
++};
++
++&eth {
++	status = "okay";
++};
++
++&mmc {
++	cap-sd-highspeed;
++
++	status = "okay";
++};
++
++&ssusb {
++	status = "okay";
++};
++
++&u3phy {
++	status = "okay";
++};
++
++&i2c {
++	status = "okay";
++	gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>, /* PIN3 as SDA */
++			<&gpio0 4 GPIO_ACTIVE_HIGH>; /* PIN4 as CLK */
++	i2c-gpio,delay-us = <50>;
++	i2c-gpio,scl-output-only;
++};
+diff --git a/arch/mips/mach-mtmips/mt7621/Kconfig b/arch/mips/mach-mtmips/mt7621/Kconfig
+index 008a28f991..2f719f7d83 100644
+--- a/arch/mips/mach-mtmips/mt7621/Kconfig
++++ b/arch/mips/mach-mtmips/mt7621/Kconfig
+@@ -5,7 +5,7 @@ menu "CPU & DDR configuration"
+ 
+ config MT7621_CPU_FREQ
+ 	int "CPU Frequency (MHz)"
+-	range 400 1200
++	range 400 1300
+ 	default 880
+ 
+ choice
+@@ -99,17 +99,22 @@ config BOARD_MT7621_NAND_RFB
+ 	  sockets, 1 RGMII to external GbE PHY, 2 audio jacks (in/out),
+ 	  JTAG pins and expansion GPIO pins.
+ 
++config BOARD_MT7621_HATLAB_GATEBOARD_ONE
++	bool "HATLab GateBoard One"
++	help
++	  HATLab GateBoard One
++
+ endchoice
+ 
+ config SYS_CONFIG_NAME
+ 	string "Board configuration name"
+-	default "mt7621" if  BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB
++	default "mt7621" if  BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB || BOARD_MT7621_HATLAB_GATEBOARD_ONE
+ 
+ config SYS_BOARD
+ 	string "Board name"
+-	default "mt7621" if  BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB
++	default "mt7621" if  BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB || BOARD_MT7621_HATLAB_GATEBOARD_ONE
+ 
+ config SYS_VENDOR
+-	default "mediatek" if BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB
++	default "mediatek" if BOARD_MT7621_RFB || BOARD_MT7621_NAND_RFB || BOARD_MT7621_HATLAB_GATEBOARD_ONE
+ 
+ endif
+diff --git a/arch/mips/mach-mtmips/mt7621/spl/start.S b/arch/mips/mach-mtmips/mt7621/spl/start.S
+index 3cad3567e7..f385eb6412 100644
+--- a/arch/mips/mach-mtmips/mt7621/spl/start.S
++++ b/arch/mips/mach-mtmips/mt7621/spl/start.S
+@@ -143,6 +143,11 @@ ENTRY(_start)
+ 	bal	mt7621_cps_init
+ 	 nop
+ 
++#if defined(CONFIG_BOARD_MT7621_HATLAB_GATEBOARD_ONE)
++	bal	hatlab_gateboard_one_early_init
++	 nop
++#endif
++
+ 	/* Prepare for CPU/DDR initialization binary blob */
+ 	bal	prepare_stage_bin
+ 	 nop
+diff --git a/board/mediatek/mt7621/Makefile b/board/mediatek/mt7621/Makefile
+index db129c5aba..fa11ba6bef 100644
+--- a/board/mediatek/mt7621/Makefile
++++ b/board/mediatek/mt7621/Makefile
+@@ -1,3 +1,4 @@
+ # SPDX-License-Identifier: GPL-2.0
+ 
+ obj-y += board.o
++obj-$(CONFIG_BOARD_MT7621_HATLAB_GATEBOARD_ONE) += hatlab,gateboard-one.o
+diff --git a/board/mediatek/mt7621/hatlab,gateboard-one.c b/board/mediatek/mt7621/hatlab,gateboard-one.c
+new file mode 100644
+index 0000000000..3324557b59
+--- /dev/null
++++ b/board/mediatek/mt7621/hatlab,gateboard-one.c
+@@ -0,0 +1,260 @@
++#include "hatlab,gateboard-one.h"
++
++#include <common.h>
++#include <asm/io.h>
++#include <asm/addrspace.h>
++
++/*
++    WDT_RST_N	GPIO	18
++    MDIO		GPIO	20
++    MDC			GPIO	21
++*/
++
++volatile static void _udelay(unsigned int usec)
++{
++    usec = (((F_CPU / 1000000) * usec) / 4) + 1;
++    while (--usec)
++        __asm__ __volatile__("");
++}
++
++static void _set_mdio_data(int val)
++{
++    void __iomem *base_gpio;
++
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    if (val)
++        setbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 20));
++    else
++        clrbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 20));
++}
++
++static int _get_mdio_data(void)
++{
++    void __iomem *base_gpio;
++    u32 data;
++
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++    data = readl(base_gpio + MT7621_GPIO_DATA_0_REG);
++
++    return (data & (1 << 20)) ? 1 : 0;
++}
++
++static void _set_mdc(int val)
++{
++    void __iomem *base_gpio;
++
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    if (val)
++        setbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 21));
++    else
++        clrbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 21));
++}
++
++static void _set_mdio_dir(int val)
++{
++    void __iomem *base_gpio;
++
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    if (val)
++        setbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 20));
++    else
++        clrbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 20));
++}
++
++/* MDIO must already be configured as output. */
++static void _mdiobb_send_bit(int val)
++{
++    _set_mdio_data(val);
++    _udelay(MDIO_DELAY);
++    _set_mdc(1);
++    _udelay(MDIO_DELAY);
++    _set_mdc(0);
++}
++
++/* MDIO must already be configured as input. */
++static int _mdiobb_get_bit(void)
++{
++    _udelay(MDIO_DELAY);
++    _set_mdc(1);
++    _udelay(MDIO_READ_DELAY);
++    _set_mdc(0);
++
++    return _get_mdio_data();
++}
++
++/* MDIO must already be configured as output. */
++static void _mdiobb_send_num(u16 val, int bits)
++{
++    int i;
++
++    for (i = bits - 1; i >= 0; i--)
++        _mdiobb_send_bit((val >> i) & 1);
++}
++
++/* MDIO must already be configured as input. */
++static u16 _mdiobb_get_num(int bits)
++{
++    int i;
++    u16 ret = 0;
++
++    for (i = bits - 1; i >= 0; i--)
++    {
++        ret <<= 1;
++        ret |= _mdiobb_get_bit();
++    }
++
++    return ret;
++}
++
++/* Utility to send the preamble, address, and
++ * register (common to read and write).
++ */
++static void _mdiobb_cmd(int read, u8 phy, u8 reg)
++{
++    int i;
++
++    _set_mdio_dir(1);
++
++    /*
++     * Send a 32 bit preamble ('1's) with an extra '1' bit for good
++     * measure.  The IEEE spec says this is a PHY optional
++     * requirement.  The AMD 79C874 requires one after power up and
++     * one after a MII communications error.  This means that we are
++     * doing more preambles than we need, but it is safer and will be
++     * much more robust.
++     */
++
++    for (i = 0; i < 32; i++)
++        _mdiobb_send_bit(1);
++
++    /* send the start bit (01) and the read opcode (10) or write (10) */
++    _mdiobb_send_bit(0);
++    _mdiobb_send_bit(1);
++    _mdiobb_send_bit(read);
++    _mdiobb_send_bit(!read);
++
++    _mdiobb_send_num(phy, 5);
++    _mdiobb_send_num(reg, 5);
++}
++
++static int _mdiobb_read(int phy, int reg)
++{
++    int ret, i;
++
++    _mdiobb_cmd(MDIO_READ, phy, reg);
++    _set_mdio_dir(0);
++
++    /* check the turnaround bit: the PHY should be driving it to zero */
++    if (_mdiobb_get_bit() != 0)
++    {
++        /* PHY didn't drive TA low -- flush any bits it
++         * may be trying to send.
++         */
++        for (i = 0; i < 32; i++)
++            _mdiobb_get_bit();
++
++        return 0xffff;
++    }
++
++    ret = _mdiobb_get_num(16);
++    _mdiobb_get_bit();
++    return ret;
++}
++
++static int _mdiobb_write(int phy, int reg, u16 val)
++{
++    _mdiobb_cmd(MDIO_WRITE, phy, reg);
++
++    /* send the turnaround (10) */
++    _mdiobb_send_bit(1);
++    _mdiobb_send_bit(0);
++
++    _mdiobb_send_num(val, 16);
++
++    _set_mdio_dir(0);
++    _mdiobb_get_bit();
++    return 0;
++}
++
++static void _mdiobb_init(void)
++{
++    void __iomem *base_sysctl, *base_gpio;
++
++    base_sysctl = (void __iomem *)CKSEG1ADDR(MT7621_SYSCTL_BASE);
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    // Set MDC/MDIO as GPIO
++    setbits_le32(base_sysctl + MT7621_SYS_GPIO_MODE_REG, REG_SET_VAL(MDIO_MODE, 1));
++    // Set MDC as output GPIO
++    setbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 21));
++}
++
++static void _mdiobb_exit(void)
++{
++    void __iomem *base_sysctl, *base_gpio;
++
++    base_sysctl = (void __iomem *)CKSEG1ADDR(MT7621_SYSCTL_BASE);
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    // Set MDC as float GPIO
++    clrbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 21));
++    // Set MDC/MDIO back to MDIO
++    setbits_le32(base_sysctl + MT7621_SYS_GPIO_MODE_REG, REG_SET_VAL(MDIO_MODE, 0));
++}
++
++void hatlab_gateboard_one_early_init(void)
++{
++    u16 phy_val;
++    void __iomem *base_sysctl, *base_gpio;
++
++    base_sysctl = (void __iomem *)CKSEG1ADDR(MT7621_SYSCTL_BASE);
++    base_gpio = (void __iomem *)CKSEG1ADDR(MT7621_GPIO_BASE);
++
++    // Reset MT7530
++    setbits_le32(base_sysctl + MT7621_SYS_RSTCTL_REG, REG_SET_VAL(MCM_RST, 1));
++    _udelay(10);
++    clrbits_le32(base_sysctl + MT7621_SYS_RSTCTL_REG, REG_MASK(MCM_RST));
++    _udelay(10);
++
++    // Reset PIO
++    setbits_le32(base_sysctl + MT7621_SYS_RSTCTL_REG, REG_SET_VAL(PIO_RST, 1));
++    _udelay(10);
++    clrbits_le32(base_sysctl + MT7621_SYS_RSTCTL_REG, REG_MASK(PIO_RST));
++    _udelay(10);
++
++    // Light up system led
++    setbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 0));
++    setbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 0));
++
++    // Set WDT_RST_N as output GPIO
++    setbits_le32(base_sysctl + MT7621_SYS_GPIO_MODE_REG, REG_SET_VAL(WDT_MODE, 1));
++    setbits_le32(base_gpio + MT7621_GPIO_CTRL_0_REG, (1 << 18));
++
++    // Set RGMII2 as float GPIO for PHY bootstrap pin
++    setbits_le32(base_sysctl + MT7621_SYS_GPIO_MODE_REG, REG_SET_VAL(RGMII2_MODE, 1));
++
++    // WDT_RST_N = 1, NMOS drain, Peripherals RST assert, Peripherals DC-DC turn off
++    setbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 18));
++
++    // Delay for peripherals power down
++    _udelay(500000);
++
++    // WDT_RST_N = 0, NMOS off, Peripherals RST deassert, Peripherals DC-DC turn on
++    clrbits_le32(base_gpio + MT7621_GPIO_DATA_0_REG, (1 << 18));
++
++    // Delay for peripherals power on
++    _udelay(400000);
++
++    // Set RGMII2 back to RGMII
++    clrbits_le32(base_sysctl + MT7621_SYS_GPIO_MODE_REG, REG_MASK(RGMII2_MODE));
++
++    // According to RTL8211FS datasheet, use bitbang MDIO turn off broadcast phy addr 0 before MT7530 init
++    _mdiobb_init();
++    phy_val = _mdiobb_read(7, 0x18);
++    phy_val &= ~(1 << 13);
++    _mdiobb_write(7, 0x18, phy_val);
++    _mdiobb_exit();
++}
+diff --git a/board/mediatek/mt7621/hatlab,gateboard-one.env b/board/mediatek/mt7621/hatlab,gateboard-one.env
+new file mode 100644
+index 0000000000..706dff9236
+--- /dev/null
++++ b/board/mediatek/mt7621/hatlab,gateboard-one.env
+@@ -0,0 +1,70 @@
++gateboard_bios_version=20230318
++
++bios_flash_size=80000
++
++blob_load_addr=81000000
++itb_load_addr=84000000
++dtoverride_load_addr=82000000
++initrd_high=84000000
++
++
++
++kernel_name=vmlinux.itb
++dtoverride_name=dtoverride.dtb
++initrd_conf_name=initrd-1
++firmware_name=hatlab_gateboard-one-combined.img
++bios_name=hatlab_gateboard-one-bios.bin
++
++ubikrnl_name=hatlab_gateboard-one-kernel.itb
++ubiroot_name=hatlab_gateboard-one-squashfs-rootfs.img
++
++ubi_mtd=spi-nand0
++ubi_part=nand0-ubi
++ubi_volume_kernel=vmlinux.itb
++ubi_volume_kernel_size=0
++ubi_volume_rootfs=rootfs
++ubi_volume_rootfs_size=0
++ubi_volume_rootfs_index=1
++ubi_volume_data=rootfs_data
++ubi_volume_data_size=4000000
++
++
++
++ewdt_disable=i2c dev 0; i2c probe; i2c mw 51 0f ff; i2c mw 51 5e 00;
++
++
++
++bootargs_template=console=ttyS0,115200
++
++_boot_ubi=ubi part ${ubi_part}; ubi read ${itb_load_addr} ${ubi_volume_kernel}; setenv bootargs ${bootargs_template} ubi.mtd=${ubi_part} ubi.block=0,${ubi_volume_rootfs} root=/dev/ubiblock0_${ubi_volume_rootfs_index}; bootm ${itb_load_addr};
++
++_boot_bootfs=if load ${interface} ${dev}:${bootable} ${itb_load_addr} ${kernel_name}; then setexpr rootpart ${bootable} + 1; part uuid ${interface} ${dev}:${rootpart} rootuuid; setenv bootargs ${bootargs_template} root=PARTUUID=${rootuuid}; if load ${interface} ${dev}:${bootable} ${dtoverride_load_addr} ${dtoverride_name}; then bootm ${itb_load_addr} :${initrd_conf_name} ${dtoverride_load_addr}; fi; bootm ${itb_load_addr}; fi; echo "================================"; echo "Bad bootable media: [${interface}]${dev}:${bootable}"; echo "================================";
++
++_flash_firmware=if load ${interface} ${dev}:1 ${blob_load_addr} ${firmware_name}; then echo "================================"; echo "Found firmware image: [${interface}]${dev}"; echo "================================"; setexpr filesize ${filesize} / 200; setexpr filesize ${filesize} + 1; setenv flashing_cmd ${interface} write ${blob_load_addr} 0 ${filesize}; run ewdt_disable; run flashing_cmd; sleep 1; reset; fi;
++
++_scan_boot_usb_dev=if usb dev ${usb_dev}; then setenv interface usb; setenv dev ${usb_dev}; part list usb ${usb_dev} -bootable bootable; if test "${bootable}" != ""; then run _boot_bootfs; fi; fi; run _flash_firmware;
++
++_scan_boot_usb=usb reset; for i in 0 1 2 3; do setenv usb_dev ${i}; run _scan_boot_usb_dev; done;
++
++_scan_boot_mmc=if mmc dev 0; then setenv interface mmc; setenv dev 0; part list mmc 0 -bootable bootable; if test "${bootable}" != ""; then run _boot_bootfs; fi; fi; run _flash_firmware;
++
++scan_boot=run _scan_boot_mmc; run _scan_boot_usb; run _boot_ubi; echo "================================"; echo "No bootable media."; echo "================================";
++
++hellomessage=echo ""; echo "================================"; echo "DAS-Security HATLab u-boot BIOS"; echo "Version: ${gateboard_bios_version}"; echo "================================"; echo "";
++
++bootcmd=run hellomessage; run scan_boot;
++
++
++
++_update_bios=if load ${interface} 0:1 ${blob_load_addr} ${bios_name}; then sf probe; sf erase 0 ${bios_flash_size}; sf write ${blob_load_addr} 0 ${filesize}; sleep 1; reset; fi;
++_update_bios_usb=usb reset; setenv interface usb; run _update_bios;
++_update_bios_mmc=mmc rescan; setenv interface mmc; run _update_bios; 
++update_bios=run ewdt_disable; run _update_bios_usb; run _update_bios_mmc;
++
++
++
++_format_ubi=if size ${interface} 0:1 ${ubikrnl_name}; then setenv ubi_volume_kernel_size ${filesize}; if size ${interface} 0:1 ${ubiroot_name}; then setenv ubi_volume_rootfs_size ${filesize}; ubi detach; mtd erase ${ubi_mtd}; ubi part ${ubi_part}; ubi create ${ubi_volume_kernel} ${ubi_volume_kernel_size} s; ubi create ${ubi_volume_rootfs} ${ubi_volume_rootfs_size}; ubi create ${ubi_volume_data} ${ubi_volume_data_size}; fi; fi;
++_flash_ubi_part=if load ${interface} 0:1 ${blob_load_addr} ${ubikrnl_name}; then ubi write ${blob_load_addr} ${ubi_volume_kernel} ${filesize}; fi; if load ${interface} 0:1 ${blob_load_addr} ${ubiroot_name}; then ubi write ${blob_load_addr} ${ubi_volume_rootfs} ${filesize}; fi;
++_flash_ubi=run ewdt_disable; run _format_ubi; run _flash_ubi_part;
++flash_ubi_usb=usb reset; setenv interface usb; run _flash_ubi; reset;
++flash_ubi_mmc=mmc rescan; setenv interface mmc; run _flash_ubi; reset;
+diff --git a/board/mediatek/mt7621/hatlab,gateboard-one.h b/board/mediatek/mt7621/hatlab,gateboard-one.h
+new file mode 100644
+index 0000000000..26bfba7023
+--- /dev/null
++++ b/board/mediatek/mt7621/hatlab,gateboard-one.h
+@@ -0,0 +1,41 @@
++#pragma once
++
++#define F_CPU 500000000L
++
++#define MT7621_SYSCTL_BASE 0x1e000000
++#define MT7621_GPIO_BASE 0x1e000600
++
++#define MT7621_SYS_RSTCTL_REG 0x34
++#define ETH_RST_S 23
++#define ETH_RST_M 0x01
++#define PIO_RST_S 13
++#define PIO_RST_M 0x01
++#define MCM_RST_S 2
++#define MCM_RST_M 0x01
++
++#define MT7621_SYS_GPIO_MODE_REG 0x60
++#define RGMII2_MODE_S 15
++#define RGMII2_MODE_M 0x01
++#define MDIO_MODE_S 12
++#define MDIO_MODE_M 0x03
++#define WDT_MODE_S 8
++#define WDT_MODE_M 0x03
++
++#define MT7621_GPIO_CTRL_0_REG 0x00
++
++#define MT7621_GPIO_DATA_0_REG 0x20
++
++#define MDIO_READ 1
++#define MDIO_WRITE 0
++
++#define MDIO_DELAY 3
++#define MDIO_READ_DELAY 4
++
++#define REG_SET_VAL(_name, _val) \
++    (((_name##_M) & (_val)) << (_name##_S))
++
++#define REG_MASK(_name) \
++    ((_name##_M) << (_name##_S))
++
++#define REG_GET_VAL(_name, _val) \
++    (((_val) >> (_name##_S)) & (_name##_M))
+diff --git a/configs/hatlab_gateboard_one_1000_defconfig b/configs/hatlab_gateboard_one_1000_defconfig
+new file mode 100644
+index 0000000000..6dc440b976
+--- /dev/null
++++ b/configs/hatlab_gateboard_one_1000_defconfig
+@@ -0,0 +1,125 @@
++CONFIG_MIPS=y
++CONFIG_BOARD_MT7621_HATLAB_GATEBOARD_ONE=y
++CONFIG_SPL_SERIAL=y
++CONFIG_SPL_SYS_MALLOC_F_LEN=0x100000
++CONFIG_SPL=y
++CONFIG_SYS_MALLOC_LEN=0x100000
++CONFIG_MIPS_RELOCATION_TABLE_SIZE=0x10000
++CONFIG_SPL_LIBCOMMON_SUPPORT=y
++CONFIG_SPL_LIBGENERIC_SUPPORT=y
++CONFIG_NR_DRAM_BANKS=1
++# CONFIG_ENV_IS_NOWHERE is not set
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_ENV_OFFSET=0x70000
++CONFIG_ENV_SIZE=0x8000
++CONFIG_ENV_SECT_SIZE=0x1000
++CONFIG_ENV_SOURCE_FILE="hatlab,gateboard-one"
++CONFIG_DEFAULT_DEVICE_TREE="hatlab,gateboard-one"
++CONFIG_DEBUG_UART_BASE=0xbe000c00
++CONFIG_DEBUG_UART_CLOCK=50000000
++CONFIG_SYS_LOAD_ADDR=0x83000000
++CONFIG_ARCH_MTMIPS=y
++CONFIG_SOC_MT7621=y
++CONFIG_MT7621_CPU_FREQ=1000
++CONFIG_MT7621_DRAM_FREQ_1200=y
++CONFIG_MT7621_DRAM_DDR3_4096M=y
++# CONFIG_MIPS_CACHE_SETUP is not set
++# CONFIG_MIPS_CACHE_DISABLE is not set
++CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
++CONFIG_MIPS_BOOT_FDT=y
++CONFIG_DEBUG_UART=y
++CONFIG_TPL_SYS_MALLOC_F_LEN=0x1000
++CONFIG_FIT=y
++# CONFIG_ARCH_FIXUP_FDT_MEMORY is not set
++CONFIG_SYS_CONSOLE_INFO_QUIET=y
++CONFIG_SPL_MAX_SIZE=0x30000
++CONFIG_SPL_BSS_START_ADDR=0x80140000
++CONFIG_SPL_BSS_MAX_SIZE=0x80000
++CONFIG_SPL_SYS_MALLOC_SIMPLE=y
++CONFIG_SPL_NOR_SUPPORT=y
++CONFIG_TPL=y
++CONFIG_BOOTDELAY=0
++# CONFIG_TPL_FRAMEWORK is not set
++# CONFIG_BOOTM_NETBSD is not set
++# CONFIG_BOOTM_PLAN9 is not set
++# CONFIG_BOOTM_RTEMS is not set
++# CONFIG_BOOTM_VXWORKS is not set
++CONFIG_SYS_BOOTM_LEN=0x2000000
++CONFIG_HUSH_PARSER=y
++# CONFIG_CMD_BOOTFLOW is not set
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++# CONFIG_CMD_CRC32 is not set
++CONFIG_CMD_DM=y
++CONFIG_CMD_GPIO=y
++# CONFIG_CMD_LOADB is not set
++# CONFIG_CMD_LOADS is not set
++CONFIG_CMD_MMC=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_PART=y
++# CONFIG_CMD_PINMUX is not set
++CONFIG_CMD_SPI=y
++# CONFIG_CMD_NFS is not set
++CONFIG_DOS_PARTITION=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_EXT2=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_MTD=y
++CONFIG_MTDIDS_DEFAULT="nor0=nor0,spi-nand0=nand0"
++CONFIG_MTDPARTS_DEFAULT="nor0:448k(u-boot),32k(u-boot-env),32k(factory);nand0:-(nand0-ubi)"
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_ISO_PARTITION is not set
++CONFIG_EFI_PARTITION=y
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_PARTITION_TYPE_GUID=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_I2C=y
++CONFIG_DM_I2C=y
++CONFIG_DM_I2C_GPIO=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MDIO=y
++# CONFIG_INPUT is not set
++CONFIG_MMC=y
++# CONFIG_MMC_QUIRKS is not set
++# CONFIG_MMC_HW_PARTITIONING is not set
++CONFIG_MMC_MTK=y
++CONFIG_SF_DEFAULT_SPEED=20000000
++CONFIG_SPI_FLASH_BAR=y
++CONFIG_SPI_FLASH_EON=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_ISSI=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_SPANSION=y
++CONFIG_SPI_FLASH_STMICRO=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SPI_FLASH_XMC=y
++CONFIG_SPI_FLASH_XTX=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_MTD=y
++CONFIG_MTD_UBI=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_MTDPARTS_SPREAD=y
++CONFIG_CMD_MTDPARTS_SHOW_NET_SIZES=y
++CONFIG_MEDIATEK_ETH=y
++CONFIG_PHY=y
++CONFIG_PHY_MTK_TPHY=y
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_SPI=y
++CONFIG_MT7621_SPI=y
++CONFIG_SYSRESET=y
++CONFIG_SYSRESET_RESETCTL=y
++CONFIG_WDT=y
++CONFIG_WDT_MT7621=y
++# CONFIG_BINMAN_FDT is not set
++CONFIG_LZMA=y
++CONFIG_GZIP=y
++CONFIG_SPL_LZMA=y
++CONFIG_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_XHCI_MTK=y
++CONFIG_USB_STORAGE=y
+diff --git a/configs/hatlab_gateboard_one_1200_defconfig b/configs/hatlab_gateboard_one_1200_defconfig
+new file mode 100644
+index 0000000000..0972cb3a7e
+--- /dev/null
++++ b/configs/hatlab_gateboard_one_1200_defconfig
+@@ -0,0 +1,125 @@
++CONFIG_MIPS=y
++CONFIG_BOARD_MT7621_HATLAB_GATEBOARD_ONE=y
++CONFIG_SPL_SERIAL=y
++CONFIG_SPL_SYS_MALLOC_F_LEN=0x100000
++CONFIG_SPL=y
++CONFIG_SYS_MALLOC_LEN=0x100000
++CONFIG_MIPS_RELOCATION_TABLE_SIZE=0x10000
++CONFIG_SPL_LIBCOMMON_SUPPORT=y
++CONFIG_SPL_LIBGENERIC_SUPPORT=y
++CONFIG_NR_DRAM_BANKS=1
++# CONFIG_ENV_IS_NOWHERE is not set
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_ENV_OFFSET=0x70000
++CONFIG_ENV_SIZE=0x8000
++CONFIG_ENV_SECT_SIZE=0x1000
++CONFIG_ENV_SOURCE_FILE="hatlab,gateboard-one"
++CONFIG_DEFAULT_DEVICE_TREE="hatlab,gateboard-one"
++CONFIG_DEBUG_UART_BASE=0xbe000c00
++CONFIG_DEBUG_UART_CLOCK=50000000
++CONFIG_SYS_LOAD_ADDR=0x83000000
++CONFIG_ARCH_MTMIPS=y
++CONFIG_SOC_MT7621=y
++CONFIG_MT7621_CPU_FREQ=1200
++CONFIG_MT7621_DRAM_FREQ_1200=y
++CONFIG_MT7621_DRAM_DDR3_4096M=y
++# CONFIG_MIPS_CACHE_SETUP is not set
++# CONFIG_MIPS_CACHE_DISABLE is not set
++CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
++CONFIG_MIPS_BOOT_FDT=y
++CONFIG_DEBUG_UART=y
++CONFIG_TPL_SYS_MALLOC_F_LEN=0x1000
++CONFIG_FIT=y
++# CONFIG_ARCH_FIXUP_FDT_MEMORY is not set
++CONFIG_SYS_CONSOLE_INFO_QUIET=y
++CONFIG_SPL_MAX_SIZE=0x30000
++CONFIG_SPL_BSS_START_ADDR=0x80140000
++CONFIG_SPL_BSS_MAX_SIZE=0x80000
++CONFIG_SPL_SYS_MALLOC_SIMPLE=y
++CONFIG_SPL_NOR_SUPPORT=y
++CONFIG_TPL=y
++CONFIG_BOOTDELAY=0
++# CONFIG_TPL_FRAMEWORK is not set
++# CONFIG_BOOTM_NETBSD is not set
++# CONFIG_BOOTM_PLAN9 is not set
++# CONFIG_BOOTM_RTEMS is not set
++# CONFIG_BOOTM_VXWORKS is not set
++CONFIG_SYS_BOOTM_LEN=0x2000000
++CONFIG_HUSH_PARSER=y
++# CONFIG_CMD_BOOTFLOW is not set
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++# CONFIG_CMD_CRC32 is not set
++CONFIG_CMD_DM=y
++CONFIG_CMD_GPIO=y
++# CONFIG_CMD_LOADB is not set
++# CONFIG_CMD_LOADS is not set
++CONFIG_CMD_MMC=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_PART=y
++# CONFIG_CMD_PINMUX is not set
++CONFIG_CMD_SPI=y
++# CONFIG_CMD_NFS is not set
++CONFIG_DOS_PARTITION=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_EXT2=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_MTD=y
++CONFIG_MTDIDS_DEFAULT="nor0=nor0,spi-nand0=nand0"
++CONFIG_MTDPARTS_DEFAULT="nor0:448k(u-boot),32k(u-boot-env),32k(factory);nand0:-(nand0-ubi)"
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_ISO_PARTITION is not set
++CONFIG_EFI_PARTITION=y
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_PARTITION_TYPE_GUID=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_I2C=y
++CONFIG_DM_I2C=y
++CONFIG_DM_I2C_GPIO=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MDIO=y
++# CONFIG_INPUT is not set
++CONFIG_MMC=y
++# CONFIG_MMC_QUIRKS is not set
++# CONFIG_MMC_HW_PARTITIONING is not set
++CONFIG_MMC_MTK=y
++CONFIG_SF_DEFAULT_SPEED=20000000
++CONFIG_SPI_FLASH_BAR=y
++CONFIG_SPI_FLASH_EON=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_ISSI=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_SPANSION=y
++CONFIG_SPI_FLASH_STMICRO=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SPI_FLASH_XMC=y
++CONFIG_SPI_FLASH_XTX=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_MTD=y
++CONFIG_MTD_UBI=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_MTDPARTS_SPREAD=y
++CONFIG_CMD_MTDPARTS_SHOW_NET_SIZES=y
++CONFIG_MEDIATEK_ETH=y
++CONFIG_PHY=y
++CONFIG_PHY_MTK_TPHY=y
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_SPI=y
++CONFIG_MT7621_SPI=y
++CONFIG_SYSRESET=y
++CONFIG_SYSRESET_RESETCTL=y
++CONFIG_WDT=y
++CONFIG_WDT_MT7621=y
++# CONFIG_BINMAN_FDT is not set
++CONFIG_LZMA=y
++CONFIG_GZIP=y
++CONFIG_SPL_LZMA=y
++CONFIG_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_XHCI_MTK=y
++CONFIG_USB_STORAGE=y
+diff --git a/configs/hatlab_gateboard_one_880_defconfig b/configs/hatlab_gateboard_one_880_defconfig
+new file mode 100644
+index 0000000000..0b584bc912
+--- /dev/null
++++ b/configs/hatlab_gateboard_one_880_defconfig
+@@ -0,0 +1,125 @@
++CONFIG_MIPS=y
++CONFIG_BOARD_MT7621_HATLAB_GATEBOARD_ONE=y
++CONFIG_SPL_SERIAL=y
++CONFIG_SPL_SYS_MALLOC_F_LEN=0x100000
++CONFIG_SPL=y
++CONFIG_SYS_MALLOC_LEN=0x100000
++CONFIG_MIPS_RELOCATION_TABLE_SIZE=0x10000
++CONFIG_SPL_LIBCOMMON_SUPPORT=y
++CONFIG_SPL_LIBGENERIC_SUPPORT=y
++CONFIG_NR_DRAM_BANKS=1
++# CONFIG_ENV_IS_NOWHERE is not set
++CONFIG_ENV_IS_IN_SPI_FLASH=y
++CONFIG_ENV_OFFSET=0x70000
++CONFIG_ENV_SIZE=0x8000
++CONFIG_ENV_SECT_SIZE=0x1000
++CONFIG_ENV_SOURCE_FILE="hatlab,gateboard-one"
++CONFIG_DEFAULT_DEVICE_TREE="hatlab,gateboard-one"
++CONFIG_DEBUG_UART_BASE=0xbe000c00
++CONFIG_DEBUG_UART_CLOCK=50000000
++CONFIG_SYS_LOAD_ADDR=0x83000000
++CONFIG_ARCH_MTMIPS=y
++CONFIG_SOC_MT7621=y
++CONFIG_MT7621_CPU_FREQ=880
++CONFIG_MT7621_DRAM_FREQ_1200=y
++CONFIG_MT7621_DRAM_DDR3_4096M=y
++# CONFIG_MIPS_CACHE_SETUP is not set
++# CONFIG_MIPS_CACHE_DISABLE is not set
++CONFIG_RESTORE_EXCEPTION_VECTOR_BASE=y
++CONFIG_MIPS_BOOT_FDT=y
++CONFIG_DEBUG_UART=y
++CONFIG_TPL_SYS_MALLOC_F_LEN=0x1000
++CONFIG_FIT=y
++# CONFIG_ARCH_FIXUP_FDT_MEMORY is not set
++CONFIG_SYS_CONSOLE_INFO_QUIET=y
++CONFIG_SPL_MAX_SIZE=0x30000
++CONFIG_SPL_BSS_START_ADDR=0x80140000
++CONFIG_SPL_BSS_MAX_SIZE=0x80000
++CONFIG_SPL_SYS_MALLOC_SIMPLE=y
++CONFIG_SPL_NOR_SUPPORT=y
++CONFIG_TPL=y
++CONFIG_BOOTDELAY=0
++# CONFIG_TPL_FRAMEWORK is not set
++# CONFIG_BOOTM_NETBSD is not set
++# CONFIG_BOOTM_PLAN9 is not set
++# CONFIG_BOOTM_RTEMS is not set
++# CONFIG_BOOTM_VXWORKS is not set
++CONFIG_SYS_BOOTM_LEN=0x2000000
++CONFIG_HUSH_PARSER=y
++# CONFIG_CMD_BOOTFLOW is not set
++# CONFIG_CMD_ELF is not set
++# CONFIG_CMD_XIMG is not set
++# CONFIG_CMD_CRC32 is not set
++CONFIG_CMD_DM=y
++CONFIG_CMD_GPIO=y
++# CONFIG_CMD_LOADB is not set
++# CONFIG_CMD_LOADS is not set
++CONFIG_CMD_MMC=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_PART=y
++# CONFIG_CMD_PINMUX is not set
++CONFIG_CMD_SPI=y
++# CONFIG_CMD_NFS is not set
++CONFIG_DOS_PARTITION=y
++CONFIG_CMD_FAT=y
++CONFIG_CMD_FS_GENERIC=y
++CONFIG_CMD_EXT2=y
++CONFIG_CMD_EXT4=y
++CONFIG_CMD_UBI=y
++CONFIG_CMD_MTD=y
++CONFIG_MTDIDS_DEFAULT="nor0=nor0,spi-nand0=nand0"
++CONFIG_MTDPARTS_DEFAULT="nor0:448k(u-boot),32k(u-boot-env),32k(factory);nand0:-(nand0-ubi)"
++# CONFIG_SPL_DOS_PARTITION is not set
++# CONFIG_ISO_PARTITION is not set
++CONFIG_EFI_PARTITION=y
++# CONFIG_SPL_EFI_PARTITION is not set
++CONFIG_PARTITION_TYPE_GUID=y
++CONFIG_SYS_RELOC_GD_ENV_ADDR=y
++CONFIG_NET_RANDOM_ETHADDR=y
++CONFIG_I2C=y
++CONFIG_DM_I2C=y
++CONFIG_DM_I2C_GPIO=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MDIO=y
++# CONFIG_INPUT is not set
++CONFIG_MMC=y
++# CONFIG_MMC_QUIRKS is not set
++# CONFIG_MMC_HW_PARTITIONING is not set
++CONFIG_MMC_MTK=y
++CONFIG_SF_DEFAULT_SPEED=20000000
++CONFIG_SPI_FLASH_BAR=y
++CONFIG_SPI_FLASH_EON=y
++CONFIG_SPI_FLASH_GIGADEVICE=y
++CONFIG_SPI_FLASH_ISSI=y
++CONFIG_SPI_FLASH_MACRONIX=y
++CONFIG_SPI_FLASH_SPANSION=y
++CONFIG_SPI_FLASH_STMICRO=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_SPI_FLASH_XMC=y
++CONFIG_SPI_FLASH_XTX=y
++CONFIG_SPI_FLASH_MTD=y
++CONFIG_DM_MTD=y
++CONFIG_MTD_SPI_NAND=y
++CONFIG_MTD=y
++CONFIG_MTD_UBI=y
++CONFIG_CMD_MTDPARTS=y
++CONFIG_CMD_MTDPARTS_SPREAD=y
++CONFIG_CMD_MTDPARTS_SHOW_NET_SIZES=y
++CONFIG_MEDIATEK_ETH=y
++CONFIG_PHY=y
++CONFIG_PHY_MTK_TPHY=y
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_SPI=y
++CONFIG_MT7621_SPI=y
++CONFIG_SYSRESET=y
++CONFIG_SYSRESET_RESETCTL=y
++CONFIG_WDT=y
++CONFIG_WDT_MT7621=y
++# CONFIG_BINMAN_FDT is not set
++CONFIG_LZMA=y
++CONFIG_GZIP=y
++CONFIG_SPL_LZMA=y
++CONFIG_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_XHCI_MTK=y
++CONFIG_USB_STORAGE=y
+diff --git a/drivers/mtd/spi/spi-nor-ids.c b/drivers/mtd/spi/spi-nor-ids.c
+index 4fe8b0d92c..d94723338c 100644
+--- a/drivers/mtd/spi/spi-nor-ids.c
++++ b/drivers/mtd/spi/spi-nor-ids.c
+@@ -443,6 +443,7 @@ const struct flash_info spi_nor_ids[] = {
+ 	{ INFO("w25m512jv", 0xef7119, 0, 64 * 1024, 1024, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ 	{ INFO("w25h02jv", 0xef9022, 0, 64 * 1024, 4096, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+ #endif
++	{ INFO("p25d40h", 0x856013, 0, 64 * 1024, 8, SECT_4K | SPI_NOR_HAS_LOCK) },
+ #ifdef CONFIG_SPI_FLASH_XMC
+ 	/* XMC (Wuhan Xinxin Semiconductor Manufacturing Corp.) */
+ 	{ INFO("XM25QH64A", 0x207017, 0, 64 * 1024, 128, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
+diff --git a/helper/build.sh b/helper/build.sh
+new file mode 100755
+index 0000000000..b31476e38c
+--- /dev/null
++++ b/helper/build.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++# sudo apt install gcc-mipsel-linux-gnu
++
++JOBS=$(grep -c ^processor /proc/cpuinfo)
++mkdir -p ./build-output ./build-hatlab_gateboard-one
++
++export CROSS_COMPILE=mipsel-linux-gnu-
++cp ./mt7621_stage_sram.blob ./build-hatlab_gateboard-one/mt7621_stage_sram.bin
++
++make O=build-hatlab_gateboard-one hatlab_gateboard_one_880_defconfig
++make O=build-hatlab_gateboard-one -j "${JOBS}"
++cp build-hatlab_gateboard-one/u-boot-mt7621.bin ./build-output/hatlab_gateboard-one-bios.880MHz.bin
++
++make O=build-hatlab_gateboard-one hatlab_gateboard_one_1000_defconfig
++make O=build-hatlab_gateboard-one -j "${JOBS}"
++cp build-hatlab_gateboard-one/u-boot-mt7621.bin ./build-output/hatlab_gateboard-one-bios.1000MHz.bin
++
++make O=build-hatlab_gateboard-one hatlab_gateboard_one_1200_defconfig
++make O=build-hatlab_gateboard-one -j "${JOBS}"
++cp build-hatlab_gateboard-one/u-boot-mt7621.bin ./build-output/hatlab_gateboard-one-bios.1200MHz.bin
+diff --git a/mt7621_stage_sram.blob b/mt7621_stage_sram.blob
+new file mode 100644
+index 0000000000000000000000000000000000000000..452e996f286a4cabcb42c66afd1750d0eb68b1ce
+GIT binary patch
+literal 21424
+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
+YLn-Rw57A|)aph02oB!_Z%EB4@|6eW_2mk;8
+
+literal 0
+HcmV?d00001
+
+diff --git a/mt7621_stage_sram.quiet.blob b/mt7621_stage_sram.quiet.blob
+new file mode 100644
+index 0000000000000000000000000000000000000000..70897a0333807b6753550e59cb5fdb84081f9b40
+GIT binary patch
+literal 13928
+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
+
+literal 0
+HcmV?d00001
+
+-- 
+2.39.2 (Apple Git-143)
+
